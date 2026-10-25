@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DSGS — доска студии</title>
+<style>
+  :root { --bg:#0d1218; --card:#161f2b; --line:#243247; --ink:#e9f0f9; --dim:#8fa1b8;
+           --idc:#5d6f86; --ok:#4ade80; --wait:#f59e0b; --rest:#5d6f86; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); padding:32px 28px 64px;
+         font:15px/1.5 "Segoe UI", system-ui, sans-serif; }
+  h1 { font-size:30px; margin:0 0 6px; }
+  .sub { color:var(--dim); margin:0 0 20px; }
+  .summary { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 8px; }
+  .pill { border:1px solid var(--line); border-radius:999px; padding:7px 16px; color:var(--dim);
+           background:#111a24; font-size:14px; }
+  .pill b { color:var(--ink); }
+  .pill .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:8px; }
+  .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:18px 0 22px; }
+  input[type=search] { flex:1 1 260px; min-width:200px; background:#111a24; border:1px solid var(--line);
+       color:var(--ink); border-radius:10px; padding:10px 14px; font-size:14px; outline:none; }
+  input[type=search]:focus { border-color:#3b5573; }
+  .filters, .styles { display:flex; gap:8px; flex-wrap:wrap; }
+  .filters button, .styles button { background:#111a24; color:var(--dim); border:1px solid var(--line);
+       border-radius:999px; padding:8px 14px; font-size:13px; cursor:pointer; }
+  .filters button[aria-pressed=true] { color:#0d1218; background:var(--c,#22d3ee); border-color:transparent; font-weight:600; }
+  .styles button[aria-pressed=true] { color:#0d1218; background:#e9f0f9; border-color:transparent; font-weight:650; }
+  .styles { border-top:1px solid var(--line); padding-top:16px; margin:0 0 24px; align-items:center; }
+  .styles span { color:var(--dim); font-size:13px; margin-right:4px; }
+  .layer { margin:0 0 40px; }
+  .layer header { display:flex; align-items:center; gap:12px; margin:0 0 14px; }
+  .layer .bar { width:6px; height:26px; border-radius:3px; background:var(--c); }
+  .layer h2 { font-size:20px; margin:0; font-weight:650; }
+  .layer em { color:var(--c); font-style:normal; font-size:13px; opacity:.85; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:14px; }
+  .subgroup { margin:0 0 22px; }
+  .subgroup h4 { margin:0 0 10px; font-size:13px; letter-spacing:.08em; text-transform:uppercase;
+                  color:#f59e0b; opacity:.9; }
+  .card { display:flex; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:16px;
+           padding:12px; transition:border-color .15s, transform .15s; }
+  .card:hover { border-color:#3b5573; transform:translateY(-1px); }
+  .card[data-state=working] { border-color:var(--ok); box-shadow:0 0 0 1px rgba(74,222,128,.35), 0 0 22px rgba(74,222,128,.12); }
+  .card[data-state=waiting] { border-color:var(--wait); box-shadow:0 0 0 1px rgba(245,158,11,.30), 0 0 22px rgba(245,158,11,.10); }
+  .ava { width:86px; height:86px; flex:0 0 86px; border-radius:12px; background:#0f1720; position:relative;
+          display:flex; align-items:center; justify-content:center; overflow:hidden;
+          transition:box-shadow .16s ease; }
+  .card:hover .ava { box-shadow:0 0 0 1px rgba(150,205,255,.32), 0 0 16px rgba(120,190,255,.20); }
+  .ava img { width:80px; height:80px; image-rendering:pixelated; }
+  .work { position:absolute; inset:0; display:none; background-repeat:no-repeat; image-rendering:pixelated; }
+  @keyframes work-roll { from { background-position-x:0; } to { background-position-x:calc(-1 * var(--wf, 6) * 86px); } }
+  .work.on { display:block; animation:work-roll var(--wdur, 540ms) steps(var(--wf, 6)) infinite; }
+  @media (prefers-reduced-motion: reduce) { .work.on { animation:none; } }
+  .body { min-width:0; flex:1; }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .top h3 { margin:0; font-size:16px; font-weight:650; }
+  .status { font-size:11px; border-radius:999px; padding:3px 9px; white-space:nowrap;
+             border:1px solid var(--line); color:var(--rest); cursor:pointer; user-select:none; }
+  .card[data-state=working] .status { color:var(--ok); border-color:rgba(74,222,128,.5); }
+  .card[data-state=waiting] .status { color:var(--wait); border-color:rgba(245,158,11,.5); }
+  .type { color:#c8b6ff; font-size:13px; margin-top:2px; }
+  .role { color:var(--dim); font-size:12.5px; margin-top:3px; }
+  .id { color:var(--idc); font:11px/1.4 Consolas, monospace; margin-top:6px; overflow:hidden; text-overflow:ellipsis; }
+  .time { color:#7f93ad; font:11px/1.4 Consolas, monospace; margin-top:4px; }
+  .card[data-state=working] .time { color:var(--ok); }
+  .card[data-state=waiting] .time { color:var(--wait); }
+  .feed { background:#111a24; border:1px solid var(--line); border-radius:14px; padding:0 16px; margin:0 0 26px; }
+  .feed[open] { padding-bottom:12px; }
+  .feed summary { display:flex; align-items:center; gap:12px; padding:12px 0; cursor:pointer; list-style:none; user-select:none; }
+  .feed summary::-webkit-details-marker { display:none; }
+  .feed summary::before { content:'▸'; color:var(--dim); font-size:13px; transition:transform .15s ease; }
+  .feed[open] summary::before { transform:rotate(90deg); }
+  .feed summary:hover h3 { color:var(--ink); }
+  .feed summary h3 { margin:0; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); }
+  .feed summary .count { margin-left:auto; font-size:12.5px; color:var(--idc); font-family:Consolas, monospace; }
+  #feed { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:2px 18px; }
+  #feed li { font-size:12.5px; color:#a9b8c9; padding:2px 0; border-bottom:1px solid rgba(36,50,71,.55); }
+  #feed li b { color:var(--ink); font-weight:600; }
+  #feed li .st-working { color:var(--ok); }
+  #feed li .st-waiting { color:var(--wait); }
+  #feed li .st-resting { color:var(--rest); }
+  #feed .empty { color:var(--idc); font-style:italic; border:0; }
+  .toast { position:fixed; left:50%; bottom:26px; transform:translate(-50%, 20px); background:#1d2836; color:var(--ink);
+           border:1px solid #3b5573; border-radius:10px; padding:10px 16px; font-size:13px; opacity:0;
+           pointer-events:none; transition:opacity .18s, transform .18s; max-width:min(90vw, 720px); }
+  .toast.show { opacity:1; transform:translate(-50%, 0); }
+  footer { border-top:1px solid var(--line); margin-top:12px; padding-top:18px; color:var(--dim); font-size:13.5px; }
+  footer b { color:var(--ink); }
+  code { color:#c8b6ff; }
+  .hidden { display:none !important; }
+</style>
+<link rel="icon" type="image/png" href="favicon.png">
+</head>
+<body data-style="anime">
+  <h1>Доска студии</h1>
+  <p class="sub">50 ролей · выбери стиль отображения — весь состав меняется сразу · клик по статусу переключает его локально</p>
+<p class="sub" id="public-snapshot" style="margin:0 0 18px;padding:10px 14px;border:1px solid #243247;border-radius:10px;background:#111a24;color:#8fa1b8;font-size:13.5px">
+  Публичный снимок доски на 25.10.2026. Это страница-витрина: статусы зафиксированы,
+  живая доска студии обновляется отдельно.
+</p>
+
+  <div class="summary">
+    <span class="pill"><span class="dot" style="background:#4ade80"></span>работают: <b id="c-work">1</b></span>
+    <span class="pill"><span class="dot" style="background:#f59e0b"></span>ждут: <b id="c-wait">4</b></span>
+    <span class="pill"><span class="dot" style="background:#5d6f86"></span>отдыхают: <b id="c-rest">45</b></span>
+    <span class="pill">всего: <b>50</b></span>
+  </div>
+
+  <details class="feed">
+    <summary><h3>История работы</h3><span id="feed-today" class="count">сегодня: 0</span></summary>
+    <ol id="feed"></ol>
+  </details>
+
+  <div class="styles" id="styles">
+    <span>Стиль:</span>
+    <button data-style="kakamora" aria-pressed="false">Кокосы-кажемора</button><button data-style="anime" aria-pressed="true">Аниме-персонажи</button>
+  </div>
+
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="поиск: имя, тип, роль…">
+    <div class="filters" id="filters">
+      <button data-f="" aria-pressed="true" style="--c:#22d3ee">все</button>
+      <button data-f="exec" aria-pressed="false" style="--c:#fb7185">управление</button>
+      <button data-f="director" aria-pressed="false" style="--c:#a855f7">режиссёры</button>
+      <button data-f="lead" aria-pressed="false" style="--c:#22d3ee">лиды</button>
+      <button data-f="spec" aria-pressed="false" style="--c:#4ade80">специалисты</button>
+      <button data-f="engine" aria-pressed="false" style="--c:#f59e0b">движки</button>
+      <button data-f="ops" aria-pressed="false" style="--c:#94a3b8">операции</button>
+    </div>
+  </div>
+
+  <section class="layer" data-tier="exec">
+    <header><span class="bar" style="--c: #fb7185"></span><h2>Управление студией</h2><em>1 · раздаёт задачи и держит порядок, сам ничего не разрабатывает</em></header>
+    <div class="grid">
+      <article class="card" data-tier="exec" data-state="resting" data-id="studio-director" data-since="2026-10-25T15:38:22+00:00" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="лелуш studio-director Босс">
+        <div class="ava"><img class="portrait" src="avatars/anime/studio-director-sleep.png" alt="Лелуш" loading="lazy">
+          <div class="work" data-src="avatars/anime/studio-director-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Лелуш</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Code Geass</div>
+          <div class="role">Босс</div>
+          <div class="time">—</div>
+          <div class="id">studio-director</div>
+        </div>
+      </article>
+    </div>
+  </section>
+  <section class="layer" data-tier="director">
+    <header><span class="bar" style="--c: #a855f7"></span><h2>Режиссёрский слой</h2><em>4 · видение и высшие решения</em></header>
+    <div class="grid">
+      <article class="card" data-tier="director" data-state="resting" data-id="creative-director" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="вайолет creative-director видение, тон">
+        <div class="ava"><img class="portrait" src="avatars/anime/creative-director-sleep.png" alt="Вайолет" loading="lazy">
+          <div class="work" data-src="avatars/anime/creative-director-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Вайолет</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Violet Evergarden</div>
+          <div class="role">видение, тон</div>
+          <div class="time">—</div>
+          <div class="id">creative-director</div>
+        </div>
+      </article>
+      <article class="card" data-tier="director" data-state="resting" data-id="technical-director" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="тацуя technical-director архитектура">
+        <div class="ava"><img class="portrait" src="avatars/anime/technical-director-sleep.png" alt="Тацуя" loading="lazy">
+          <div class="work" data-src="avatars/anime/technical-director-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Тацуя</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">The Irregular at Magic High School</div>
+          <div class="role">архитектура</div>
+          <div class="time">—</div>
+          <div class="id">technical-director</div>
+        </div>
+      </article>
+      <article class="card" data-tier="director" data-state="resting" data-id="producer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="макото producer спринты, вехи">
+        <div class="ava"><img class="portrait" src="avatars/anime/producer-sleep.png" alt="Макото" loading="lazy">
+          <div class="work" data-src="avatars/anime/producer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Макото</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Free!</div>
+          <div class="role">спринты, вехи</div>
+          <div class="time">—</div>
+          <div class="id">producer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="director" data-state="resting" data-id="art-director" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="сакура art-director стиль, арт-библия">
+        <div class="ava"><img class="portrait" src="avatars/anime/art-director-sleep.png" alt="Сакура" loading="lazy">
+          <div class="work" data-src="avatars/anime/art-director-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Сакура</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Cardcaptor Sakura</div>
+          <div class="role">стиль, арт-библия</div>
+          <div class="time">—</div>
+          <div class="id">art-director</div>
+        </div>
+      </article>
+    </div>
+  </section>
+  <section class="layer" data-tier="lead">
+    <header><span class="bar" style="--c: #22d3ee"></span><h2>Слой лидов</h2><em>7 · держат дисциплины</em></header>
+    <div class="grid">
+      <article class="card" data-tier="lead" data-state="resting" data-id="game-designer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="лайт game-designer механики, кор-лупы">
+        <div class="ava"><img class="portrait" src="avatars/anime/game-designer-sleep.png" alt="Лайт" loading="lazy">
+          <div class="work" data-src="avatars/anime/game-designer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Лайт</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Death Note</div>
+          <div class="role">механики, кор-лупы</div>
+          <div class="time">—</div>
+          <div class="id">game-designer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="lead" data-state="resting" data-id="systems-designer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="кэндзи systems-designer формулы, кривые">
+        <div class="ava"><img class="portrait" src="avatars/anime/systems-designer-sleep.png" alt="Кэндзи" loading="lazy">
+          <div class="work" data-src="avatars/anime/systems-designer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Кэндзи</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Summer Wars</div>
+          <div class="role">формулы, кривые</div>
+          <div class="time">—</div>
+          <div class="id">systems-designer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="lead" data-state="resting" data-id="lead-programmer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="какаши lead-programmer код-архитектура">
+        <div class="ava"><img class="portrait" src="avatars/anime/lead-programmer-sleep.png" alt="Какаши" loading="lazy">
+          <div class="work" data-src="avatars/anime/lead-programmer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Какаши</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Naruto</div>
+          <div class="role">код-архитектура</div>
+          <div class="time">—</div>
+          <div class="id">lead-programmer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="lead" data-state="resting" data-id="narrative-director" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="тору narrative-director сюжет, лор">
+        <div class="ava"><img class="portrait" src="avatars/anime/narrative-director-sleep.png" alt="Тору" loading="lazy">
+          <div class="work" data-src="avatars/anime/narrative-director-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Тору</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Fruits Basket</div>
+          <div class="role">сюжет, лор</div>
+          <div class="time">—</div>
+          <div class="id">narrative-director</div>
+        </div>
+      </article>
+      <article class="card" data-tier="lead" data-state="resting" data-id="level-designer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="эрен level-designer уровни, энкаунтеры">
+        <div class="ava"><img class="portrait" src="avatars/anime/level-designer-sleep.png" alt="Эрен" loading="lazy">
+          <div class="work" data-src="avatars/anime/level-designer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Эрен</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Attack on Titan</div>
+          <div class="role">уровни, энкаунтеры</div>
+          <div class="time">—</div>
+          <div class="id">level-designer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="lead" data-state="resting" data-id="audio-director" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="харуки audio-director музыка, звук">
+        <div class="ava"><img class="portrait" src="avatars/anime/audio-director-sleep.png" alt="Харуки" loading="lazy">
+          <div class="work" data-src="avatars/anime/audio-director-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Харуки</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Given</div>
+          <div class="role">музыка, звук</div>
+          <div class="time">—</div>
+          <div class="id">audio-director</div>
+        </div>
+      </article>
+      <article class="card" data-tier="lead" data-state="resting" data-id="qa-lead" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="мисаки qa-lead тест-стратегия">
+        <div class="ava"><img class="portrait" src="avatars/anime/qa-lead-sleep.png" alt="Мисаки" loading="lazy">
+          <div class="work" data-src="avatars/anime/qa-lead-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Мисаки</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Maid-sama</div>
+          <div class="role">тест-стратегия</div>
+          <div class="time">—</div>
+          <div class="id">qa-lead</div>
+        </div>
+      </article>
+    </div>
+  </section>
+  <section class="layer" data-tier="spec">
+    <header><span class="bar" style="--c: #4ade80"></span><h2>Специалисты</h2><em>17 · исполнители и узкие эксперты</em></header>
+    <div class="grid">
+      <article class="card" data-tier="spec" data-state="resting" data-id="gameplay-programmer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="ичиго gameplay-programmer механики в коде">
+        <div class="ava"><img class="portrait" src="avatars/anime/gameplay-programmer-sleep.png" alt="Ичиго" loading="lazy">
+          <div class="work" data-src="avatars/anime/gameplay-programmer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Ичиго</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Bleach</div>
+          <div class="role">механики в коде</div>
+          <div class="time">—</div>
+          <div class="id">gameplay-programmer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="engine-programmer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="горо engine-programmer рендер, физика">
+        <div class="ava"><img class="portrait" src="avatars/anime/engine-programmer-sleep.png" alt="Горо" loading="lazy">
+          <div class="work" data-src="avatars/anime/engine-programmer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Горо</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Darling in the Franxx</div>
+          <div class="role">рендер, физика</div>
+          <div class="time">—</div>
+          <div class="id">engine-programmer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="ai-programmer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="гон ai-programmer поведение, восприятие">
+        <div class="ava"><img class="portrait" src="avatars/anime/ai-programmer-sleep.png" alt="Гон" loading="lazy">
+          <div class="work" data-src="avatars/anime/ai-programmer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Гон</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Hunter x Hunter</div>
+          <div class="role">поведение, восприятие</div>
+          <div class="time">—</div>
+          <div class="id">ai-programmer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="network-programmer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="кайто network-programmer репликация, неткод">
+        <div class="ava"><img class="portrait" src="avatars/anime/network-programmer-sleep.png" alt="Кайто" loading="lazy">
+          <div class="work" data-src="avatars/anime/network-programmer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Кайто</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Magic Kaito</div>
+          <div class="role">репликация, неткод</div>
+          <div class="time">—</div>
+          <div class="id">network-programmer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="waiting" data-id="ui-programmer" data-since="2026-10-25T17:34:42+00:00" data-until="" data-live="1" data-work-frames="6" data-work-ms="90" data-name="кэйко ui-programmer меню, HUD">
+        <div class="ava"><img class="portrait" src="avatars/anime/ui-programmer.png" alt="Кэйко" loading="lazy">
+          <div class="work" data-src="avatars/anime/ui-programmer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Кэйко</h3><span class="status" title="клик — скопировать CLI-команду">ждёт</span></div>
+          <div class="type">Yu Yu Hakusho</div>
+          <div class="role">меню, HUD</div>
+          <div class="time">—</div>
+          <div class="id">ui-programmer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="waiting" data-id="tools-programmer" data-since="2026-10-25T17:06:06+00:00" data-until="" data-live="1" data-work-frames="6" data-work-ms="90" data-name="хидэки tools-programmer тулинг, редактор">
+        <div class="ava"><img class="portrait" src="avatars/anime/tools-programmer.png" alt="Хидэки" loading="lazy">
+          <div class="work" data-src="avatars/anime/tools-programmer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Хидэки</h3><span class="status" title="клик — скопировать CLI-команду">ждёт</span></div>
+          <div class="type">Chobits</div>
+          <div class="role">тулинг, редактор</div>
+          <div class="time">—</div>
+          <div class="id">tools-programmer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="prototyper" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="дайсукэ prototyper прототипы, срезы">
+        <div class="ava"><img class="portrait" src="avatars/anime/prototyper-sleep.png" alt="Дайсукэ" loading="lazy">
+          <div class="work" data-src="avatars/anime/prototyper-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Дайсукэ</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Digimon Adventure 02</div>
+          <div class="role">прототипы, срезы</div>
+          <div class="time">—</div>
+          <div class="id">prototyper</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="technical-artist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="шото technical-artist шейдеры, VFX">
+        <div class="ava"><img class="portrait" src="avatars/anime/technical-artist-sleep.png" alt="Шото" loading="lazy">
+          <div class="work" data-src="avatars/anime/technical-artist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Шото</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">My Hero Academia</div>
+          <div class="role">шейдеры, VFX</div>
+          <div class="time">—</div>
+          <div class="id">technical-artist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="performance-analyst" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="курису performance-analyst профайлинг">
+        <div class="ava"><img class="portrait" src="avatars/anime/performance-analyst-sleep.png" alt="Курису" loading="lazy">
+          <div class="work" data-src="avatars/anime/performance-analyst-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Курису</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Steins;Gate</div>
+          <div class="role">профайлинг</div>
+          <div class="time">—</div>
+          <div class="id">performance-analyst</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="security-engineer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="кира security-engineer античит, сейвы">
+        <div class="ava"><img class="portrait" src="avatars/anime/security-engineer-sleep.png" alt="Кира" loading="lazy">
+          <div class="work" data-src="avatars/anime/security-engineer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Кира</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">JoJo's Bizarre Adventure</div>
+          <div class="role">античит, сейвы</div>
+          <div class="time">—</div>
+          <div class="id">security-engineer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="sound-designer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="ёко sound-designer спецификации SFX">
+        <div class="ava"><img class="portrait" src="avatars/anime/sound-designer-sleep.png" alt="Ёко" loading="lazy">
+          <div class="work" data-src="avatars/anime/sound-designer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Ёко</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Gurren Lagann</div>
+          <div class="role">спецификации SFX</div>
+          <div class="time">—</div>
+          <div class="id">sound-designer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="ux-designer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="нодзоми ux-designer UX-потоки">
+        <div class="ava"><img class="portrait" src="avatars/anime/ux-designer-sleep.png" alt="Нодзоми" loading="lazy">
+          <div class="work" data-src="avatars/anime/ux-designer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Нодзоми</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Love Live!</div>
+          <div class="role">UX-потоки</div>
+          <div class="time">—</div>
+          <div class="id">ux-designer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="accessibility-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="хана accessibility-specialist доступность">
+        <div class="ava"><img class="portrait" src="avatars/anime/accessibility-specialist-sleep.png" alt="Хана" loading="lazy">
+          <div class="work" data-src="avatars/anime/accessibility-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Хана</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Wolf Children</div>
+          <div class="role">доступность</div>
+          <div class="time">—</div>
+          <div class="id">accessibility-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="waiting" data-id="writer" data-since="2026-10-25T17:47:16+00:00" data-until="" data-live="1" data-work-frames="6" data-work-ms="90" data-name="эми writer диалоги, лор">
+        <div class="ava"><img class="portrait" src="avatars/anime/writer.png" alt="Эми" loading="lazy">
+          <div class="work" data-src="avatars/anime/writer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Эми</h3><span class="status" title="клик — скопировать CLI-команду">ждёт</span></div>
+          <div class="type">The Devil is a Part-Timer!</div>
+          <div class="role">диалоги, лор</div>
+          <div class="time">—</div>
+          <div class="id">writer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="resting" data-id="world-builder" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="рику world-builder мир, история">
+        <div class="ava"><img class="portrait" src="avatars/anime/world-builder-sleep.png" alt="Рику" loading="lazy">
+          <div class="work" data-src="avatars/anime/world-builder-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Рику</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Gundam Build Divers</div>
+          <div class="role">мир, история</div>
+          <div class="time">—</div>
+          <div class="id">world-builder</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="working" data-id="analytics-engineer" data-since="2026-10-25T17:47:16+00:00" data-until="" data-live="1" data-work-frames="6" data-work-ms="90" data-name="тэцуя analytics-engineer телеметрия, A/B">
+        <div class="ava"><img class="portrait" src="avatars/anime/analytics-engineer.png" alt="Тэцуя" loading="lazy">
+          <div class="work" data-src="avatars/anime/analytics-engineer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Тэцуя</h3><span class="status" title="клик — скопировать CLI-команду">работает</span></div>
+          <div class="type">Kuroko's Basketball</div>
+          <div class="role">телеметрия, A/B</div>
+          <div class="time">—</div>
+          <div class="id">analytics-engineer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="spec" data-state="waiting" data-id="qa-tester" data-since="2026-10-25T17:46:16+00:00" data-until="" data-live="1" data-work-frames="6" data-work-ms="90" data-name="нобита qa-tester тест-кейсы">
+        <div class="ava"><img class="portrait" src="avatars/anime/qa-tester.png" alt="Нобита" loading="lazy">
+          <div class="work" data-src="avatars/anime/qa-tester-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Нобита</h3><span class="status" title="клик — скопировать CLI-команду">ждёт</span></div>
+          <div class="type">Doraemon</div>
+          <div class="role">тест-кейсы</div>
+          <div class="time">—</div>
+          <div class="id">qa-tester</div>
+        </div>
+      </article>
+    </div>
+  </section>
+  <section class="layer" data-tier="engine">
+    <header><span class="bar" style="--c:#f59e0b"></span><h2>Группа движков</h2>
+      <em>15 · после /setup-engine работает только пятёрка выбранного</em></header>
+    <div class="subgroup"><h4>Godot 4</h4><div class="grid">
+      <article class="card" data-tier="engine" data-state="resting" data-id="godot-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="рэм godot-specialist ноды, сцены">
+        <div class="ava"><img class="portrait" src="avatars/anime/godot-specialist-sleep.png" alt="Рэм" loading="lazy">
+          <div class="work" data-src="avatars/anime/godot-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Рэм</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Re:Zero</div>
+          <div class="role">ноды, сцены</div>
+          <div class="time">—</div>
+          <div class="id">godot-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="godot-gdscript-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="тандзиро godot-gdscript-specialist GDScript, идиомы">
+        <div class="ava"><img class="portrait" src="avatars/anime/godot-gdscript-specialist-sleep.png" alt="Тандзиро" loading="lazy">
+          <div class="work" data-src="avatars/anime/godot-gdscript-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Тандзиро</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Demon Slayer</div>
+          <div class="role">GDScript, идиомы</div>
+          <div class="time">—</div>
+          <div class="id">godot-gdscript-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="godot-csharp-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="саэ godot-csharp-specialist .NET, экспорты">
+        <div class="ava"><img class="portrait" src="avatars/anime/godot-csharp-specialist-sleep.png" alt="Саэ" loading="lazy">
+          <div class="work" data-src="avatars/anime/godot-csharp-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Саэ</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Blue Lock</div>
+          <div class="role">.NET, экспорты</div>
+          <div class="time">—</div>
+          <div class="id">godot-csharp-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="godot-gdextension-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="исаму godot-gdextension-specialist C++/Rust, граница">
+        <div class="ava"><img class="portrait" src="avatars/anime/godot-gdextension-specialist-sleep.png" alt="Исаму" loading="lazy">
+          <div class="work" data-src="avatars/anime/godot-gdextension-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Исаму</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Macross Plus</div>
+          <div class="role">C++/Rust, граница</div>
+          <div class="time">—</div>
+          <div class="id">godot-gdextension-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="godot-shader-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="спайк godot-shader-specialist шейдеры, материалы">
+        <div class="ava"><img class="portrait" src="avatars/anime/godot-shader-specialist-sleep.png" alt="Спайк" loading="lazy">
+          <div class="work" data-src="avatars/anime/godot-shader-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Спайк</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Cowboy Bebop</div>
+          <div class="role">шейдеры, материалы</div>
+          <div class="time">—</div>
+          <div class="id">godot-shader-specialist</div>
+        </div>
+      </article>
+    </div></div>
+    <div class="subgroup"><h4>Unity</h4><div class="grid">
+      <article class="card" data-tier="engine" data-state="resting" data-id="unity-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="кадзу unity-specialist MonoBehaviour">
+        <div class="ava"><img class="portrait" src="avatars/anime/unity-specialist-sleep.png" alt="Кадзу" loading="lazy">
+          <div class="work" data-src="avatars/anime/unity-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Кадзу</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Air Gear</div>
+          <div class="role">MonoBehaviour</div>
+          <div class="time">—</div>
+          <div class="id">unity-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="unity-ui-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="мэй unity-ui-specialist UI Toolkit, UGUI">
+        <div class="ava"><img class="portrait" src="avatars/anime/unity-ui-specialist-sleep.png" alt="Мэй" loading="lazy">
+          <div class="work" data-src="avatars/anime/unity-ui-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Мэй</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">My Neighbor Totoro</div>
+          <div class="role">UI Toolkit, UGUI</div>
+          <div class="time">—</div>
+          <div class="id">unity-ui-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="unity-shader-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="такуми unity-shader-specialist Shader Graph, HLSL">
+        <div class="ava"><img class="portrait" src="avatars/anime/unity-shader-specialist-sleep.png" alt="Такуми" loading="lazy">
+          <div class="work" data-src="avatars/anime/unity-shader-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Такуми</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Initial D</div>
+          <div class="role">Shader Graph, HLSL</div>
+          <div class="time">—</div>
+          <div class="id">unity-shader-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="unity-dots-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="сайтама unity-dots-specialist ECS, Jobs, Burst">
+        <div class="ava"><img class="portrait" src="avatars/anime/unity-dots-specialist-sleep.png" alt="Сайтама" loading="lazy">
+          <div class="work" data-src="avatars/anime/unity-dots-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Сайтама</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">One Punch Man</div>
+          <div class="role">ECS, Jobs, Burst</div>
+          <div class="time">—</div>
+          <div class="id">unity-dots-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="unity-addressables-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="нами unity-addressables-specialist группы, загрузка">
+        <div class="ava"><img class="portrait" src="avatars/anime/unity-addressables-specialist-sleep.png" alt="Нами" loading="lazy">
+          <div class="work" data-src="avatars/anime/unity-addressables-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Нами</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">One Piece</div>
+          <div class="role">группы, загрузка</div>
+          <div class="time">—</div>
+          <div class="id">unity-addressables-specialist</div>
+        </div>
+      </article>
+    </div></div>
+    <div class="subgroup"><h4>Unreal Engine 5</h4><div class="grid">
+      <article class="card" data-tier="engine" data-state="resting" data-id="unreal-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="томоя unreal-specialist Blueprint vs C++">
+        <div class="ava"><img class="portrait" src="avatars/anime/unreal-specialist-sleep.png" alt="Томоя" loading="lazy">
+          <div class="work" data-src="avatars/anime/unreal-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Томоя</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Clannad</div>
+          <div class="role">Blueprint vs C++</div>
+          <div class="time">—</div>
+          <div class="id">unreal-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="ue-blueprint-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="харуто ue-blueprint-specialist архитектура BP">
+        <div class="ava"><img class="portrait" src="avatars/anime/ue-blueprint-specialist-sleep.png" alt="Харуто" loading="lazy">
+          <div class="work" data-src="avatars/anime/ue-blueprint-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Харуто</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Valvrave the Liberator</div>
+          <div class="role">архитектура BP</div>
+          <div class="time">—</div>
+          <div class="id">ue-blueprint-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="ue-gas-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="юно ue-gas-specialist abilities, effects">
+        <div class="ava"><img class="portrait" src="avatars/anime/ue-gas-specialist-sleep.png" alt="Юно" loading="lazy">
+          <div class="work" data-src="avatars/anime/ue-gas-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Юно</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Mirai Nikki</div>
+          <div class="role">abilities, effects</div>
+          <div class="time">—</div>
+          <div class="id">ue-gas-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="ue-replication-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="рэй ue-replication-specialist свойства, RPC">
+        <div class="ava"><img class="portrait" src="avatars/anime/ue-replication-specialist-sleep.png" alt="Рэй" loading="lazy">
+          <div class="work" data-src="avatars/anime/ue-replication-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Рэй</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Evangelion</div>
+          <div class="role">свойства, RPC</div>
+          <div class="time">—</div>
+          <div class="id">ue-replication-specialist</div>
+        </div>
+      </article>
+      <article class="card" data-tier="engine" data-state="resting" data-id="ue-umg-specialist" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="юи ue-umg-specialist виджеты, CommonUI">
+        <div class="ava"><img class="portrait" src="avatars/anime/ue-umg-specialist-sleep.png" alt="Юи" loading="lazy">
+          <div class="work" data-src="avatars/anime/ue-umg-specialist-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Юи</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">K-On!</div>
+          <div class="role">виджеты, CommonUI</div>
+          <div class="time">—</div>
+          <div class="id">ue-umg-specialist</div>
+        </div>
+      </article>
+    </div></div>
+  </section>
+  <section class="layer" data-tier="ops">
+    <header><span class="bar" style="--c: #94a3b8"></span><h2>Операционный слой</h2><em>6 · сборка, релиз, жизнь игры</em></header>
+    <div class="grid">
+      <article class="card" data-tier="ops" data-state="resting" data-id="devops-engineer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="рэн devops-engineer CI/CD, деплой">
+        <div class="ava"><img class="portrait" src="avatars/anime/devops-engineer-sleep.png" alt="Рэн" loading="lazy">
+          <div class="work" data-src="avatars/anime/devops-engineer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Рэн</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Skip Beat</div>
+          <div class="role">CI/CD, деплой</div>
+          <div class="time">—</div>
+          <div class="id">devops-engineer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="ops" data-state="resting" data-id="release-manager" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="сатоси release-manager сертификация, сторы">
+        <div class="ava"><img class="portrait" src="avatars/anime/release-manager-sleep.png" alt="Сатоси" loading="lazy">
+          <div class="work" data-src="avatars/anime/release-manager-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Сатоси</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Pokémon</div>
+          <div class="role">сертификация, сторы</div>
+          <div class="time">—</div>
+          <div class="id">release-manager</div>
+        </div>
+      </article>
+      <article class="card" data-tier="ops" data-state="resting" data-id="live-ops-designer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="мидори live-ops-designer сезоны, батлпассы">
+        <div class="ava"><img class="portrait" src="avatars/anime/live-ops-designer-sleep.png" alt="Мидори" loading="lazy">
+          <div class="work" data-src="avatars/anime/live-ops-designer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Мидори</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Midori no Hibi</div>
+          <div class="role">сезоны, батлпассы</div>
+          <div class="time">—</div>
+          <div class="id">live-ops-designer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="ops" data-state="resting" data-id="economy-designer" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="момока economy-designer лут, экономика">
+        <div class="ava"><img class="portrait" src="avatars/anime/economy-designer-sleep.png" alt="Момока" loading="lazy">
+          <div class="work" data-src="avatars/anime/economy-designer-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Момока</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Sgt. Frog</div>
+          <div class="role">лут, экономика</div>
+          <div class="time">—</div>
+          <div class="id">economy-designer</div>
+        </div>
+      </article>
+      <article class="card" data-tier="ops" data-state="resting" data-id="community-manager" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="акира community-manager патчноуты, комьюнити">
+        <div class="ava"><img class="portrait" src="avatars/anime/community-manager-sleep.png" alt="Акира" loading="lazy">
+          <div class="work" data-src="avatars/anime/community-manager-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Акира</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Devilman Crybaby</div>
+          <div class="role">патчноуты, комьюнити</div>
+          <div class="time">—</div>
+          <div class="id">community-manager</div>
+        </div>
+      </article>
+      <article class="card" data-tier="ops" data-state="resting" data-id="localization-lead" data-since="" data-until="" data-live="" data-work-frames="6" data-work-ms="90" data-name="сатору localization-lead i18n, локали">
+        <div class="ava"><img class="portrait" src="avatars/anime/localization-lead-sleep.png" alt="Сатору" loading="lazy">
+          <div class="work" data-src="avatars/anime/localization-lead-work.png"></div></div>
+        <div class="body">
+          <div class="top"><h3>Сатору</h3><span class="status" title="клик — скопировать CLI-команду">отдыхает</span></div>
+          <div class="type">Jujutsu Kaisen</div>
+          <div class="role">i18n, локали</div>
+          <div class="time">—</div>
+          <div class="id">localization-lead</div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <footer>
+    <p><b>Наведение:</b> карточка в покое показывает рабочий кадр, пока курсор на ней, и мягко
+       подсвечивает портрет — так видно, кого именно смотришь. Работает при любом статусе:
+       и у «ждёт», и у «отдыхает» под курсором появляется рабочая форма. Убери курсор — вернётся обычный вид.</p>
+    <p><b>Три статуса:</b> «работает» — задача в процессе; «ждёт» — агент в живой команде
+       AgentTeams, но без задачи в работе (ставится автоматически из <code>.agent-teams/</code>);
+       «отдыхает» — ни команды, ни задачи. У члена живой команды статус держится, пока он
+       в команде, а не по таймеру: длинная задача не «истекает» на полпути. У отдыхающих
+       аниме-портрет с закрытыми глазами (<code>avatars/anime/&lt;id&gt;-sleep.png</code>).</p>
+    <p><b>Стили:</b> у каждого стиля свой полный набор спрайтов (<code>avatars/&lt;стиль&gt;/</code>),
+       переключение мгновенное. Новый стиль = новый модуль в <code>tools/studio-board/</code>,
+       добавить строку в <code>STYLES</code> — и он появится кнопкой.</p>
+    <p><b>Статусы:</b> <code>state.json</code> ·
+       <code>python tools/studio-board/build_studio_board.py --set qa-tester=working</code> ·
+       <code>--reset</code>.</p>
+    <p><b>Аниме-стиль:</b> каждая роль сопоставлена популярному протагонисту; пол — по персонажу.
+       Силуэт, палитра, крой одежды и опознавательные детали (шрамы, маски, головные уборы,
+       украшения) взяты из первоисточника. Спрайт 128×128, апскейл nearest.</p>
+  </footer>
+
+<script>
+const TYPES = {"kakamora": {"studio-director": "кокос-оркестратор в одноглазой", "creative-director": "кокос-провидец в костяной", "technical-director": "кокос-сварщик в дощатой", "producer": "кокос-хронометр в боевой раскраске", "art-director": "кокос-кицунэ в раковине-каури", "game-designer": "кокос-они в рогатой", "systems-designer": "кокос-газовик в плетёной", "lead-programmer": "кокос-каменщик в дощатой", "narrative-director": "кокос-сказитель в резной тики", "level-designer": "кокос-зодчий в акульей пасти", "audio-director": "кокос-камертон в костяной", "qa-lead": "кокос-дозор в одноглазой", "gameplay-programmer": "кокос-молот в акульей пасти", "engine-programmer": "кокос-кузнец в дощатой", "ai-programmer": "кокос-многоглаз в одноглазой", "network-programmer": "кокос-связной в плетёной", "ui-programmer": "кокос-сетка в боевой раскраске", "tools-programmer": "кокос-инструментальщик в дощатой", "prototyper": "кокос-набросок в резной тики", "technical-artist": "кокос-техарт в костяной", "performance-analyst": "кокос-прицел в одноглазой", "security-engineer": "кокос-страж в рогатой", "sound-designer": "кокос-резонатор в костяной", "ux-designer": "кокос-проводник в раковине-каури", "accessibility-specialist": "кокос-хранитель в резной тики", "writer": "кокос-писец в резной тики", "world-builder": "кокос-атлас в акульей пасти", "analytics-engineer": "кокос-телеметр в одноглазой", "qa-tester": "кокос-проверщик в боевой раскраске", "godot-specialist": "кокос-сцена в акульей пасти", "godot-gdscript-specialist": "кокос-типизатор в боевой раскраске", "godot-csharp-specialist": "кокос-компилятор в дощатой", "godot-gdextension-specialist": "кокос-мост в плетёной", "godot-shader-specialist": "кокос-пиксель в костяной", "unity-specialist": "кокос-компонент в одноглазой", "unity-ui-specialist": "кокос-холст в боевой раскраске", "unity-shader-specialist": "кокос-HLSL в костяной", "unity-dots-specialist": "кокос-рой в плетёной", "unity-addressables-specialist": "кокос-вьюк в резной тики", "unreal-specialist": "кокос-блупринт в рогатой", "ue-blueprint-specialist": "кокос-граф в раковине-каури", "ue-gas-specialist": "кокос-тег в одноглазой", "ue-replication-specialist": "кокос-копия в плетёной", "ue-umg-specialist": "кокос-виджет в резной тики", "devops-engineer": "кокос-конвейер в дощатой", "release-manager": "кокос-печать в костяной", "live-ops-designer": "кокос-сезон в раковине-каури", "economy-designer": "кокос-монета в акульей пасти", "community-manager": "кокос-голос в раковине-каури", "localization-lead": "кокос-перевод в резной тики"}, "anime": {"studio-director": "Code Geass", "creative-director": "Violet Evergarden", "technical-director": "The Irregular at Magic High School", "producer": "Free!", "art-director": "Cardcaptor Sakura", "game-designer": "Death Note", "systems-designer": "Summer Wars", "lead-programmer": "Naruto", "narrative-director": "Fruits Basket", "level-designer": "Attack on Titan", "audio-director": "Given", "qa-lead": "Maid-sama", "gameplay-programmer": "Bleach", "engine-programmer": "Darling in the Franxx", "ai-programmer": "Hunter x Hunter", "network-programmer": "Magic Kaito", "ui-programmer": "Yu Yu Hakusho", "tools-programmer": "Chobits", "prototyper": "Digimon Adventure 02", "technical-artist": "My Hero Academia", "performance-analyst": "Steins;Gate", "security-engineer": "JoJo's Bizarre Adventure", "sound-designer": "Gurren Lagann", "ux-designer": "Love Live!", "accessibility-specialist": "Wolf Children", "writer": "The Devil is a Part-Timer!", "world-builder": "Gundam Build Divers", "analytics-engineer": "Kuroko's Basketball", "qa-tester": "Doraemon", "godot-specialist": "Re:Zero", "godot-gdscript-specialist": "Demon Slayer", "godot-csharp-specialist": "Blue Lock", "godot-gdextension-specialist": "Macross Plus", "godot-shader-specialist": "Cowboy Bebop", "unity-specialist": "Air Gear", "unity-ui-specialist": "My Neighbor Totoro", "unity-shader-specialist": "Initial D", "unity-dots-specialist": "One Punch Man", "unity-addressables-specialist": "One Piece", "unreal-specialist": "Clannad", "ue-blueprint-specialist": "Valvrave the Liberator", "ue-gas-specialist": "Mirai Nikki", "ue-replication-specialist": "Evangelion", "ue-umg-specialist": "K-On!", "devops-engineer": "Skip Beat", "release-manager": "Pokémon", "live-ops-designer": "Midori no Hibi", "economy-designer": "Sgt. Frog", "community-manager": "Devilman Crybaby", "localization-lead": "Jujutsu Kaisen"}};
+const SLEEP = {"kakamora": [], "anime": ["accessibility-specialist", "ai-programmer", "analytics-engineer", "art-director", "audio-director", "community-manager", "creative-director", "devops-engineer", "economy-designer", "engine-programmer", "game-designer", "gameplay-programmer", "godot-csharp-specialist", "godot-gdextension-specialist", "godot-gdscript-specialist", "godot-shader-specialist", "godot-specialist", "lead-programmer", "level-designer", "live-ops-designer", "localization-lead", "narrative-director", "network-programmer", "performance-analyst", "producer", "prototyper", "qa-lead", "qa-tester", "release-manager", "security-engineer", "sound-designer", "studio-director", "systems-designer", "technical-artist", "technical-director", "tools-programmer", "ue-blueprint-specialist", "ue-gas-specialist", "ue-replication-specialist", "ue-umg-specialist", "ui-programmer", "unity-addressables-specialist", "unity-dots-specialist", "unity-shader-specialist", "unity-specialist", "unity-ui-specialist", "unreal-specialist", "ux-designer", "world-builder", "writer"]};
+const IMG_BASE = 'avatars/';
+const cards = [...document.querySelectorAll('.card')];
+const q = document.getElementById('q');
+let tier = '';
+let style = localStorage.getItem('dsgs-style') || document.body.dataset.style;
+
+function hasSleep(id) {
+  return (SLEEP[style] || []).indexOf(id) >= 0;
+}
+
+// Resting agents close their eyes; working and waiting ones keep them open.
+function applyPortrait(c) {
+  const img = c.querySelector('img.portrait');
+  if (!img) return;
+  const id = c.dataset.id;
+  const asleep = c.dataset.state === 'resting' && hasSleep(id);
+  img.src = IMG_BASE + style + '/' + id + (asleep ? '-sleep' : '') + '.png';
+}
+
+function applyWork(c) {
+  const w = c.querySelector('.work');
+  const img = c.querySelector('img.portrait');
+  if (!w) return;
+  const hovered = c.matches(':hover');
+  const on = (style === 'anime') && w.dataset.src && (c.dataset.state === 'working' || hovered);
+  if (!on) {
+    w.classList.remove('on');
+    w.style.display = 'none';
+    if (img) img.style.visibility = 'visible';
+    return;
+  }
+  const n = parseInt(c.dataset.workFrames || '0', 10) || 1;
+  const ms = parseInt(c.dataset.workMs || '90', 10) || 90;
+  w.style.setProperty('--wf', n);
+  w.style.setProperty('--wdur', (n * ms) + 'ms');
+  w.style.backgroundImage = 'url(' + w.dataset.src + ')';
+  w.style.backgroundSize = (n * 86) + 'px 86px';
+  w.style.display = 'block';
+  w.classList.add('on');
+  if (img) img.style.visibility = 'hidden';
+}
+
+function setStyle(next, persist) {
+  style = next;
+  if (!TYPES[next]) return;
+  document.body.dataset.style = next;
+  for (const c of cards) {
+    const id = c.dataset.id;
+    const t = TYPES[next][id];
+    if (t) c.querySelector('.type').textContent = t;
+    applyPortrait(c);
+    applyWork(c);
+  }
+  document.querySelectorAll('#styles button').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.style === next)));
+  if (persist) localStorage.setItem('dsgs-style', next);
+}
+
+function apply() {
+  const s = q.value.trim().toLowerCase();
+  for (const c of cards) {
+    const okTier = !tier || c.dataset.tier === tier;
+    const okText = !s || c.dataset.name.includes(s) || c.querySelector('.type').textContent.toLowerCase().includes(s);
+    c.classList.toggle('hidden', !(okTier && okText));
+  }
+  document.querySelectorAll('.layer').forEach(l => {
+    const visible = [...l.querySelectorAll('.card')].some(c => !c.classList.contains('hidden'));
+    l.classList.toggle('hidden', !visible);
+  });
+}
+
+q.addEventListener('input', apply);
+document.getElementById('filters').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  tier = b.dataset.f;
+  document.querySelectorAll('#filters button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  apply();
+});
+document.getElementById('styles').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  setStyle(b.dataset.style, true);
+});
+
+const FEED = [{"auto": true, "id": "qa-tester", "state": "resting", "t": "2026-10-25T02:28:02+00:00"}, {"id": "ai-programmer", "state": "working", "t": "2026-10-25T02:28:14+00:00"}, {"id": "technical-artist", "state": "working", "t": "2026-10-25T02:28:14+00:00"}, {"id": "qa-tester", "state": "working", "t": "2026-10-25T02:28:14+00:00"}, {"auto": true, "id": "ai-programmer", "state": "resting", "t": "2026-10-25T02:30:52+00:00"}, {"auto": true, "id": "technical-artist", "state": "resting", "t": "2026-10-25T02:30:52+00:00"}, {"auto": true, "id": "qa-tester", "state": "resting", "t": "2026-10-25T02:30:52+00:00"}, {"id": "qa-tester", "state": "working", "t": "2026-10-25T02:31:58+00:00"}, {"id": "qa-tester", "state": "resting", "t": "2026-10-25T02:31:58+00:00"}, {"id": "technical-artist", "state": "working", "t": "2026-10-25T02:31:58+00:00"}, {"auto": true, "id": "technical-artist", "state": "resting", "t": "2026-10-25T02:31:59+00:00"}, {"id": "qa-tester", "state": "working", "t": "2026-10-25T02:35:55+00:00"}, {"auto": true, "id": "qa-tester", "state": "resting", "t": "2026-10-25T02:36:03+00:00"}, {"id": "qa-tester", "state": "working", "t": "2026-10-25T04:13:54+00:00"}, {"id": "qa-tester", "state": "resting", "t": "2026-10-25T04:14:43+00:00"}, {"id": "ai-programmer", "state": "working", "t": "2026-10-25T04:39:51+00:00"}, {"auto": true, "id": "studio-director", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "creative-director", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "technical-director", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "producer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "art-director", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "game-designer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "systems-designer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "lead-programmer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "narrative-director", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "level-designer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "audio-director", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "qa-lead", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "gameplay-programmer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "engine-programmer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "ai-programmer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "network-programmer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "ui-programmer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "tools-programmer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "prototyper", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "technical-artist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "performance-analyst", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "security-engineer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "sound-designer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "ux-designer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "accessibility-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "writer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "world-builder", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "analytics-engineer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "qa-tester", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "godot-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "godot-gdscript-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "godot-csharp-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "godot-gdextension-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "godot-shader-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "unity-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "unity-ui-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "unity-shader-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "unity-dots-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "unity-addressables-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "unreal-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "ue-blueprint-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "ue-gas-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "ue-replication-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "ue-umg-specialist", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "devops-engineer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "release-manager", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "live-ops-designer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "economy-designer", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "community-manager", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "localization-lead", "state": "working", "t": "2026-10-25T05:15:59+00:00"}, {"auto": true, "id": "studio-director", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "creative-director", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "technical-director", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "producer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "art-director", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "game-designer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "systems-designer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "lead-programmer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "narrative-director", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "level-designer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "audio-director", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "qa-lead", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "gameplay-programmer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "engine-programmer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "ai-programmer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "network-programmer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "ui-programmer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "tools-programmer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "prototyper", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "technical-artist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "performance-analyst", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "security-engineer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "sound-designer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "ux-designer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "accessibility-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "writer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "world-builder", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "analytics-engineer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "qa-tester", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "godot-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "godot-gdscript-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "godot-csharp-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "godot-gdextension-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "godot-shader-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "unity-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "unity-ui-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "unity-shader-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "unity-dots-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "unity-addressables-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "unreal-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "ue-blueprint-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "ue-gas-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "ue-replication-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "ue-umg-specialist", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "devops-engineer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "release-manager", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "live-ops-designer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "economy-designer", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "community-manager", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"auto": true, "id": "localization-lead", "state": "resting", "t": "2026-10-25T06:05:13+00:00"}, {"id": "qa-lead", "state": "working", "t": "2026-10-25T06:16:29+00:00"}, {"id": "level-designer", "state": "working", "t": "2026-10-25T06:16:29+00:00"}, {"id": "security-engineer", "state": "working", "t": "2026-10-25T06:16:29+00:00"}, {"auto": true, "id": "level-designer", "state": "resting", "t": "2026-10-25T07:08:26+00:00"}, {"auto": true, "id": "qa-lead", "state": "resting", "t": "2026-10-25T07:08:26+00:00"}, {"auto": true, "id": "security-engineer", "state": "resting", "t": "2026-10-25T07:08:26+00:00"}, {"id": "game-designer", "state": "working", "t": "2026-10-25T07:16:03+00:00"}, {"id": "gameplay-programmer", "state": "working", "t": "2026-10-25T07:16:03+00:00"}, {"auto": true, "id": "game-designer", "state": "resting", "t": "2026-10-25T07:19:29+00:00"}, {"auto": true, "id": "gameplay-programmer", "state": "resting", "t": "2026-10-25T07:19:29+00:00"}, {"id": "qa-tester", "state": "working", "t": "2026-10-25T07:19:35+00:00"}, {"auto": true, "id": "qa-tester", "state": "resting", "t": "2026-10-25T07:21:07+00:00"}, {"id": "qa-tester", "state": "working", "t": "2026-10-25T07:21:23+00:00"}, {"id": "qa-tester", "state": "resting", "t": "2026-10-25T07:22:22+00:00"}, {"id": "studio-director", "state": "working", "t": "2026-10-25T07:26:48+00:00"}, {"id": "studio-director", "state": "resting", "t": "2026-10-25T07:27:39+00:00"}, {"id": "game-designer", "state": "working", "t": "2026-10-25T07:27:39+00:00"}, {"id": "game-designer", "state": "resting", "t": "2026-10-25T07:28:51+00:00"}, {"id": "sound-designer", "state": "working", "t": "2026-10-25T07:28:51+00:00"}, {"auto": true, "id": "gameplay-programmer", "state": "working", "t": "2026-10-25T07:35:56+00:00", "team": null}, {"id": "sound-designer", "state": "resting", "t": "2026-10-25T07:36:26+00:00"}, {"id": "gameplay-programmer", "state": "resting", "t": "2026-10-25T07:39:20+00:00"}, {"auto": true, "id": "technical-artist", "state": "working", "t": "2026-10-25T07:39:20+00:00", "team": null}, {"auto": true, "id": "gameplay-programmer", "state": "working", "t": "2026-10-25T07:45:15+00:00", "team": null}, {"id": "technical-artist", "state": "resting", "t": "2026-10-25T07:45:33+00:00"}, {"auto": true, "id": "sound-designer", "state": "working", "t": "2026-10-25T07:45:33+00:00", "team": null}, {"auto": true, "id": "gameplay-programmer", "state": "resting", "t": "2026-10-25T07:45:40+00:00"}, {"auto": true, "id": "qa-tester", "state": "working", "t": "2026-10-25T07:47:08+00:00", "team": null}, {"auto": true, "id": "sound-designer", "state": "resting", "t": "2026-10-25T07:47:08+00:00"}, {"id": "qa-tester", "state": "resting", "t": "2026-10-25T07:50:06+00:00"}, {"auto": true, "id": "gameplay-programmer", "state": "waiting", "t": "2026-10-25T08:12:31+00:00", "team": null}, {"auto": true, "id": "technical-artist", "state": "waiting", "t": "2026-10-25T08:12:31+00:00", "team": null}, {"auto": true, "id": "qa-tester", "state": "waiting", "t": "2026-10-25T08:12:31+00:00", "team": null}, {"auto": true, "id": "game-designer", "state": "waiting", "t": "2026-10-25T08:12:31+00:00", "team": null}, {"auto": true, "id": "sound-designer", "state": "waiting", "t": "2026-10-25T08:12:31+00:00", "team": null}, {"auto": true, "id": "producer", "state": "waiting", "t": "2026-10-25T08:13:16+00:00", "team": null}, {"auto": true, "id": "creative-director", "state": "waiting", "t": "2026-10-25T08:13:16+00:00", "team": null}, {"auto": true, "id": "qa-lead", "state": "waiting", "t": "2026-10-25T08:13:16+00:00", "team": null}, {"auto": true, "id": "creative-director", "state": "resting", "t": "2026-10-25T08:31:27+00:00"}, {"auto": true, "id": "game-designer", "state": "resting", "t": "2026-10-25T08:31:27+00:00"}, {"auto": true, "id": "gameplay-programmer", "state": "resting", "t": "2026-10-25T08:31:27+00:00"}, {"auto": true, "id": "producer", "state": "resting", "t": "2026-10-25T08:31:27+00:00"}, {"auto": true, "id": "qa-lead", "state": "resting", "t": "2026-10-25T08:31:27+00:00"}, {"auto": true, "id": "qa-tester", "state": "resting", "t": "2026-10-25T08:31:27+00:00"}, {"auto": true, "id": "sound-designer", "state": "resting", "t": "2026-10-25T08:31:27+00:00"}, {"auto": true, "id": "technical-artist", "state": "resting", "t": "2026-10-25T08:31:27+00:00"}, {"auto": true, "id": "art-director", "state": "resting", "t": "2026-10-25T10:29:13+00:00"}, {"auto": true, "id": "audio-director", "state": "resting", "t": "2026-10-25T10:29:13+00:00"}, {"auto": true, "id": "ai-programmer", "state": "resting", "t": "2026-10-25T10:29:13+00:00"}, {"auto": true, "id": "accessibility-specialist", "state": "resting", "t": "2026-10-25T10:29:13+00:00"}, {"auto": true, "id": "analytics-engineer", "state": "resting", "t": "2026-10-25T10:29:13+00:00"}, {"id": "studio-director", "state": "working", "t": "2026-10-25T15:34:32+00:00"}, {"id": "studio-director", "state": "resting", "t": "2026-10-25T15:38:22+00:00"}, {"id": "analytics-engineer", "state": "working", "t": "2026-10-25T15:44:34+00:00"}, {"auto": true, "id": "tools-programmer", "state": "waiting", "t": "2026-10-25T15:44:34+00:00", "team": null}, {"auto": true, "id": "ui-programmer", "state": "waiting", "t": "2026-10-25T15:44:34+00:00", "team": null}, {"auto": true, "id": "qa-tester", "state": "waiting", "t": "2026-10-25T15:44:34+00:00", "team": null}, {"auto": true, "id": "writer", "state": "waiting", "t": "2026-10-25T15:44:34+00:00", "team": null}, {"auto": true, "id": "analytics-engineer", "state": "waiting", "t": "2026-10-25T15:46:41+00:00", "team": null}, {"id": "analytics-engineer", "state": "working", "t": "2026-10-25T15:47:11+00:00"}, {"id": "tools-programmer", "state": "working", "t": "2026-10-25T15:57:14+00:00"}, {"auto": true, "id": "analytics-engineer", "state": "waiting", "t": "2026-10-25T15:57:44+00:00", "team": null}, {"auto": true, "id": "tools-programmer", "state": "waiting", "t": "2026-10-25T16:56:02+00:00", "team": null}, {"id": "tools-programmer", "state": "working", "t": "2026-10-25T16:56:33+00:00"}, {"auto": true, "id": "tools-programmer", "state": "waiting", "t": "2026-10-25T17:06:06+00:00", "team": null}, {"id": "ui-programmer", "state": "working", "t": "2026-10-25T17:08:06+00:00"}, {"id": "ui-programmer", "state": "working", "t": "2026-10-25T17:08:37+00:00"}, {"id": "ui-programmer", "state": "working", "t": "2026-10-25T17:09:07+00:00"}, {"id": "ui-programmer", "state": "working", "t": "2026-10-25T17:09:37+00:00"}, {"auto": true, "id": "ui-programmer", "state": "waiting", "t": "2026-10-25T17:14:05+00:00", "team": null}, {"auto": true, "id": "ui-programmer", "state": "working", "t": "2026-10-25T17:14:35+00:00", "team": null}, {"auto": true, "id": "qa-tester", "state": "working", "t": "2026-10-25T17:34:12+00:00", "team": null}, {"auto": true, "id": "writer", "state": "working", "t": "2026-10-25T17:34:12+00:00", "team": null}, {"auto": true, "id": "ui-programmer", "state": "waiting", "t": "2026-10-25T17:34:42+00:00", "team": null}, {"auto": true, "id": "writer", "state": "waiting", "t": "2026-10-25T17:44:45+00:00", "team": null}, {"auto": true, "id": "writer", "state": "working", "t": "2026-10-25T17:45:15+00:00", "team": null}, {"auto": true, "id": "qa-tester", "state": "waiting", "t": "2026-10-25T17:46:16+00:00", "team": null}, {"t": "2026-10-25T17:47:16+00:00", "id": "analytics-engineer", "state": "working", "auto": true, "team": null}, {"t": "2026-10-25T17:47:16+00:00", "id": "writer", "state": "waiting", "auto": true, "team": null}];
+const order = ['resting', 'working'];
+const label = { resting: 'отдыхает', waiting: 'ждёт', working: 'работает' };
+function counts() {
+  let w = 0, wa = 0, r = 0;
+  for (const c of cards) {
+    if (c.dataset.state === 'working') w++;
+    else if (c.dataset.state === 'waiting') wa++;
+    else r++;
+  }
+  const put = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = v;
+  };
+  put('c-work', w);
+  put('c-wait', wa);
+  put('c-rest', r);
+}
+
+function dur(ms) {
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return 'меньше минуты';
+  const h = Math.floor(m / 60);
+  return h ? (h + ' ч ' + (m % 60) + ' мин') : (m + ' мин');
+}
+
+function sinceText(card) {
+  const st = card.dataset.state;
+  const iso = card.dataset.since;
+  const until = card.dataset.until;
+  const live = card.dataset.live === '1';
+  if (!live && st === 'working' && until) {
+    const u = new Date(until);
+    if (!isNaN(u.getTime()) && Date.now() >= u.getTime()) return 'сессия истекла';
+  }
+  if (!iso) return st === 'resting' ? '—' : 'время неизвестно';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'время неизвестно';
+  const hm = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const base = 'с ' + hm + ' · ' + dur(Date.now() - d.getTime());
+  if (live || st !== 'working' || !until) return base;
+  const left = new Date(until).getTime() - Date.now();
+  return base + (left > 0 ? ' · ещё до ' + new Date(until).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '');
+}
+
+function refresh() {
+  let flipped = false;
+  for (const c of cards) {
+    // waiting and working are leases: an unconfirmed state falls back to resting.
+    // A live team member has no lease at all - their state lasts as long as the
+    // member is in team.json, and the next rebuild drops them when they leave.
+    if (c.dataset.live === '1') continue;
+    if (c.dataset.state !== 'working' && c.dataset.state !== 'waiting') continue;
+    const until = c.dataset.until;
+    if (!until) continue;
+    const u = new Date(until);
+    if (isNaN(u.getTime()) || Date.now() < u.getTime()) continue;
+    c.dataset.state = 'resting';
+    c.dataset.until = '';
+    const s = c.querySelector('.status');
+    if (s) s.textContent = label.resting;
+    applyPortrait(c);
+    applyWork(c);
+    flipped = true;
+  }
+  counts();
+  renderTimes();
+  if (flipped) renderFeed();
+}
+
+function renderTimes() {
+  for (const c of cards) {
+    const el = c.querySelector('.time');
+    if (el) el.textContent = sinceText(c);
+  }
+}
+
+function renderFeed() {
+  const ol = document.getElementById('feed');
+  if (!ol) return;
+  ol.innerHTML = '';
+  const today = new Date().toDateString();
+  let nToday = 0;
+  for (const e of FEED) {
+    const d = new Date(e.t);
+    if (!isNaN(d.getTime()) && d.toDateString() === today) nToday++;
+  }
+  const counter = document.getElementById('feed-today');
+  if (counter) counter.textContent = 'сегодня: ' + nToday;
+
+  const shown = FEED.slice(-20).reverse();
+  if (!shown.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = 'пока пусто — статусы ставятся командой CLI';
+    ol.appendChild(li);
+    return;
+  }
+  for (const e of shown) {
+    const d = new Date(e.t);
+    const hm = isNaN(d.getTime()) ? '??:??'
+      : d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const card = document.querySelector('.card[data-id="' + e.id + '"]');
+    const nm = card ? card.querySelector('h3').textContent : e.id;
+    const li = document.createElement('li');
+    li.innerHTML = hm + ' · <b>' + nm + '</b> <span style="opacity:.6">' + e.id + '</span> → '
+      + '<span class="st-' + e.state + '">' + (label[e.state] || e.state) + '</span>';
+    ol.appendChild(li);
+  }
+}
+
+function toast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.className = 'toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._h);
+  toast._h = setTimeout(function () { t.classList.remove('show'); }, 2600);
+}
+
+document.addEventListener('click', e => {
+  const s = e.target.closest('.status'); if (!s) return;
+  const card = s.closest('.card');
+  // waiting is automatic (a live team without a task), so it is not in the
+  // manual cycle: clicking a waiting agent offers to start real work instead
+  const current = card.dataset.state;
+  const next = current === 'waiting'
+    ? 'working'
+    : order[(order.indexOf(current) + 1) % order.length];
+  const cmd = 'python tools/studio-board/build_studio_board.py --set ' + card.dataset.id + '=' + next;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(cmd).catch(function () {});
+  }
+  toast('скопировано: ' + cmd);
+});
+
+setStyle(style, false);
+apply();
+counts();
+renderTimes();
+renderFeed();
+for (const c of cards) applyPortrait(c);
+for (const c of cards) applyWork(c);
+for (const c of cards) {
+  c.addEventListener('mouseenter', () => applyWork(c));
+  c.addEventListener('mouseleave', () => applyWork(c));
+}
+refresh();
+setInterval(refresh, 10000);
+
+// When the board is served over http (not opened as a file), follow state.json
+// so changes written by the CLI or by hooks show up without a rebuild.
+let serving = location.protocol === 'http:' || location.protocol === 'https:';
+async function syncState() {
+  if (!serving) return;
+  try {
+    const res = await fetch('state.json', { cache: 'no-store' });
+    if (!res.ok) { serving = false; return; }
+    const data = await res.json();
+    const agents = data.agents || {};
+    for (const c of cards) {
+      const entry = agents[c.dataset.id];
+      let state = entry && entry.state ? entry.state : 'resting';
+      let until = (entry && entry.until) || '';
+      const live = !!(entry && entry.live);
+      // an expired lease is not a state any more - drop it right here
+      if (!live && (state === 'working' || state === 'waiting') && until) {
+        const u = new Date(until);
+        if (!isNaN(u.getTime()) && Date.now() >= u.getTime()) { state = 'resting'; until = ''; }
+      }
+      c.dataset.state = state;
+      c.dataset.since = (entry && entry.since) || '';
+      c.dataset.until = until;
+      c.dataset.live = live ? '1' : '';
+      const s = c.querySelector('.status');
+      if (s) s.textContent = label[state] || state;
+      applyPortrait(c);
+      applyWork(c);
+    }
+    counts();
+    renderTimes();
+  } catch (error) {
+    serving = false;
+  }
+}
+syncState();
+setInterval(syncState, 10000);
+</script>
+</body>
+</html>
